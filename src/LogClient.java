@@ -1,3 +1,4 @@
+import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
@@ -8,23 +9,33 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Scanner;
 
-public class LogClient {
+public class LogClient implements Runnable {
+	static int threadsCnt = 0;
+	private List<String> grepRet = new LinkedList<String>();
+	static int lineCnt = 0;
 
 	public static void main(String[] args) {
+		new Thread(new LogClient()).start();
+	}
 
-		List<String> grepRet = new LinkedList<String>();
+	@Override
+	public void run() {
+		logClientMain();
+	}
 
-		System.out.print("Please input your cmd:");
+	private void logClientMain() {
+		Scanner sc = new Scanner(System.in);
 		while (true) {
 			// read grep command
-			Scanner sc = new Scanner(System.in);
-			String cmd = sc.nextLine();
+			// while (!sc.hasNextLine()) {
+			// continue;
+			// }
 
-			// check command
-			if (!cmd.startsWith("grepLog ")) {
-				System.out.println("Command invalid!\n\nPlease input your cmd:");
-				continue;
-			}
+			System.out.print("Please input your pattern:");
+			String pattern = sc.nextLine();
+			if (pattern.equals("exit"))
+				break;
+			String cmd = "grep " + pattern;
 
 			// start multithreading
 			for (int i = 0; i < 10; ++i) {
@@ -32,15 +43,30 @@ public class LogClient {
 			}
 
 			// display grep results from VMs
-			for (int i = 0; i < 10; ++i) {
+			while (true) {
+				if (LogClient.threadsCnt == 10)
+					break;
+				else
+					try {
+						Thread.sleep(500);
+					} catch (InterruptedException e) {
+						e.printStackTrace();
+					}
+			}
+			System.out.println("While Loop Complete");
+			for (int i = 0; i < grepRet.size(); ++i) {
 				if (grepRet.get(i) != null && grepRet.get(i).length() != 0) {
 					System.out.println(grepRet.get(i) + "\n");
 				}
 			}
 
-			sc.close();
-
+			System.out.println(LogClient.lineCnt + " lines found!");
+			//
+			LogClient.threadsCnt = 0;
+			grepRet.clear();
+			lineCnt = 0;
 		}
+		sc.close();
 	}
 
 	static class MultiClient implements Runnable {
@@ -58,10 +84,11 @@ public class LogClient {
 			sb.append("172.22.146.1");
 			sb.append(String.valueOf(index + 42));
 			this.host = sb.toString();
+			// System.out.println(sb.toString());
 
 			this.port = 8399;
 			// specify the log file name
-			this.cmd = cmd + "vm" + String.valueOf(index + 1) + ".log";
+			this.cmd = cmd + " vm" + String.valueOf(index + 1) + ".log";
 			this.index = index;
 			this.grepRet = grepRet;
 
@@ -83,25 +110,31 @@ public class LogClient {
 				writer.flush();
 
 				// read grep results line by line
-				Reader reader = new InputStreamReader(socket.getInputStream());
+				BufferedReader reader = new BufferedReader(new InputStreamReader(socket.getInputStream()),
+						10 * 1024 * 1024);
 				StringBuffer sb = new StringBuffer();
-				char[] chars = new char[1024];
-				int lineCnt = 0;
+				String string;
+				int vmLineCnt = 0;
 				socket.setSoTimeout(10 * 1000);
-				while (reader.read(chars) != -1) {
-					sb.append(chars);
-					++lineCnt;
+				while ((string = reader.readLine()) != null) {
+					sb.append(string + "\n");
+					++vmLineCnt;
 				}
-				sb.append("======VM " + index + "contains " + lineCnt + "lines======\n");
+				sb.append("======VM" + (index + 1) + " contains " + vmLineCnt + " lines======\n");
 
-				grepRet.add(this.index, sb.toString());
+				grepRet.add(sb.toString());
 
 				// close all
 				writer.close();
 				reader.close();
 				socket.close();
-
+				++LogClient.threadsCnt;
+				LogClient.lineCnt += vmLineCnt;
 			} catch (IOException e) {
+				System.out.println("VM" + (index + 1) + " failed!");
+				++LogClient.threadsCnt;
+			} catch (Exception e) {
+				++LogClient.threadsCnt;
 				e.printStackTrace();
 			}
 		}
