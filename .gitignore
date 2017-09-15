@@ -7,6 +7,11 @@ Maintest.java
 
 bin/
 
+
+#macOS
+.DS_Store
+
+
 # Log file
 *.log
 
