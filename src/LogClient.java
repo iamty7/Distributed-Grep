@@ -1,4 +1,10 @@
 import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileReader;
+import java.io.FileWriter;
+import java.io.FilterWriter;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
@@ -21,15 +27,14 @@ import java.util.Scanner;
  */
 public class LogClient implements Runnable {
 
-	// represents for numbers of child threads that finish tasks
+	// represent for numbers of child threads that finish tasks
 	static int threadsCnt = 0;
-	// used to store grep results
-	private List<String> grepRet = new LinkedList<String>();
-	// counts line number of the results
+
+	// count line number of the results
 	static int lineCnt = 0;
 
 	public static void main(String[] args) {
-		// starting the main thread
+		// start the main thread
 		new Thread(new LogClient()).start();
 	}
 
@@ -56,9 +61,9 @@ public class LogClient implements Runnable {
 
 			String cmd = "grep " + pattern;
 
-			// starting multithreading, one thread connecting one VM
+			// start multithreading, one thread connecting one VM
 			for (int i = 0; i < 10; ++i) {
-				new Thread(new MultiClient(cmd, i, grepRet)).start();
+				new Thread(new MultiClient(cmd, i)).start();
 			}
 
 			// main thread waiting until all child threads finish their tasks
@@ -67,30 +72,61 @@ public class LogClient implements Runnable {
 					break;
 				else
 					try {
-						Thread.sleep(50);
+						Thread.sleep(20);
 					} catch (InterruptedException e) {
 						e.printStackTrace();
 					}
 			}
 
-			// print out grep results
-			for (int i = 0; i < grepRet.size(); ++i) {
-				if (grepRet.get(i) != null && grepRet.get(i).length() != 0) {
-					System.out.println(grepRet.get(i) + "\n");
-				}
+			// print out grep results from files
+			for (int i = 0; i < 10; i++) {
+				printFile(i);
 			}
 
 			System.out.println(LogClient.lineCnt + " lines found!");
 
 			// initialize global variants
 			LogClient.threadsCnt = 0;
-			grepRet.clear();
-			lineCnt = 0;
+
+			LogClient.lineCnt = 0;
 		}
 		sc.close();
 	}
-	
-	
+
+	/*
+	 * Prints the file line by line
+	 * 
+	 * @param index the index of the child thread, from 0~9
+	 * 
+	 */
+	private void printFile(int index) {
+
+		File fileName = new File("grepLog" + (index + 1) + ".log");
+		String readStr;
+		// check whether the file exists
+		if (!fileName.exists()) {
+			try {
+				fileName.createNewFile();
+			} catch (IOException e1) {
+				e1.printStackTrace();
+			}
+		}
+
+		try {
+			FileReader fileReader = new FileReader(fileName);
+			BufferedReader buffread = new BufferedReader(fileReader);
+			try {
+				while ((readStr = buffread.readLine()) != null)
+					System.out.println(readStr);
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
+		} catch (FileNotFoundException e) {
+			e.printStackTrace();
+		}
+
+	}
+
 	/*
 	 * Child thread used to connects with server and sends a grep command
 	 * 
@@ -109,15 +145,15 @@ public class LogClient implements Runnable {
 		 * 
 		 * The constructor creates a thread to connect to a server
 		 * 
-		 * @param cmd
-		 * 			the options and pattern of the grep command
-		 * @param index
-		 * 			the index of the child thread, from 0~9
-		 * @param grepRet
-		 * 			the grep results for the main thread to display and store
+		 * @param cmd the options and pattern of the grep command
+		 * 
+		 * @param index the index of the child thread, from 0~9
+		 * 
+		 * @param grepRet the grep results for the main thread to display and
+		 * store
 		 */
-		public MultiClient(String cmd, int index, List<String> grepRet) {
-			// calculates IP address
+		public MultiClient(String cmd, int index) {
+			// calculate IP address
 			StringBuffer sb = new StringBuffer();
 			sb.append("172.22.146.1");
 			sb.append(String.valueOf(index + 42));
@@ -125,7 +161,6 @@ public class LogClient implements Runnable {
 			this.port = 8399;
 			this.cmd = cmd + " vm" + String.valueOf(index + 1) + ".log";
 			this.index = index;
-			this.grepRet = grepRet;
 
 		}
 
@@ -140,34 +175,44 @@ public class LogClient implements Runnable {
 		 */
 		private void handleSocket() {
 			try {
-				// sets up socket
+				// set up socket
 				this.socket = new Socket(host, port);
 				Writer writer = new OutputStreamWriter(socket.getOutputStream());
 
-				// sends command to the server
+				// send command to the server
 				writer.write(cmd);
 				writer.flush();
 
-				// read grep results line by line and restore to the grepRet
+				// open log file
+				File fileName = new File("grepLog" + (index + 1) + ".log");
+				if (!fileName.exists()) {
+					try {
+						fileName.createNewFile();
+					} catch (IOException e1) {
+						e1.printStackTrace();
+					}
+				}
+				FileWriter fileWriter = new FileWriter(fileName);
+
+				// read grep results line by line and stores into the file
 				BufferedReader reader = new BufferedReader(new InputStreamReader(socket.getInputStream()),
 						10 * 1024 * 1024);
-				StringBuffer sb = new StringBuffer();
 				String string;
-				// counts line number for one VM
+				// count line number for one VM
 				int vmLineCnt = 0;
 				socket.setSoTimeout(10 * 1000);
+
 				while ((string = reader.readLine()) != null) {
-					sb.append(string + "\n");
+					fileWriter.write(string + "\n");
 					++vmLineCnt;
 				}
-				sb.append("======VM" + (index + 1) + " contains " + vmLineCnt + " lines======\n");
-
-				grepRet.add(sb.toString());
+				fileWriter.write("======VM" + (index + 1) + " contains " + vmLineCnt + " lines======");
 
 				// close sockets and I/O streams
 				writer.close();
 				reader.close();
 				socket.close();
+				fileWriter.close();
 				++LogClient.threadsCnt;
 				LogClient.lineCnt += vmLineCnt;
 			} catch (IOException e) {
