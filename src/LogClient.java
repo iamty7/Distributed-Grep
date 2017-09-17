@@ -63,6 +63,7 @@ public class LogClient implements Runnable {
 
 			// start multithreading, one thread connecting one VM
 			for (int i = 0; i < 10; ++i) {
+
 				new Thread(new MultiClient(cmd, i)).start();
 			}
 
@@ -185,13 +186,6 @@ public class LogClient implements Runnable {
 
 				// open log file
 				File fileName = new File("grepLog" + (index + 1) + ".log");
-				if (!fileName.exists()) {
-					try {
-						fileName.createNewFile();
-					} catch (IOException e1) {
-						e1.printStackTrace();
-					}
-				}
 				FileWriter fileWriter = new FileWriter(fileName);
 
 				// read grep results line by line and stores into the file
@@ -204,9 +198,11 @@ public class LogClient implements Runnable {
 
 				while ((string = reader.readLine()) != null) {
 					fileWriter.write(string + "\n");
+					fileWriter.flush();
 					++vmLineCnt;
 				}
 				fileWriter.write("======VM" + (index + 1) + " contains " + vmLineCnt + " lines======");
+				fileWriter.flush();
 
 				// close sockets and I/O streams
 				writer.close();
@@ -218,6 +214,13 @@ public class LogClient implements Runnable {
 			} catch (IOException e) {
 				System.out.println("VM" + (index + 1) + " failed!");
 				++LogClient.threadsCnt;
+				File fileName = new File("grepLog" + (index + 1) + ".log");
+				try {
+					FileWriter fileWriter = new FileWriter(fileName);
+					fileWriter.close();
+				} catch (IOException e1) {
+					e1.printStackTrace();
+				}
 			} catch (Exception e) {
 				++LogClient.threadsCnt;
 				e.printStackTrace();
