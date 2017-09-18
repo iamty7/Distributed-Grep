@@ -13,7 +13,7 @@ Group Member: yutao2, jiey3
 
 #### Instructions to run the unit test:
 
-1. The log files for unit test are placed on VM2 and VM3 (which are named vm2Test.log and vm3Test.log). VM1 has the both two unit test log files
+1. The log files for unit test are placed on VM2 and VM3 (which are named vm2Test.log and vm3Test.log). VM1 has both two unit test log files
 2. Compile and run the LogClientTest in VM1
-3. The client will compare the results from the servers  (VM2 and VM3) to the ones obtained locally.
+3. The client will compare the results from the servers  (VM2 and VM3) with the ones obtained locally.
 
