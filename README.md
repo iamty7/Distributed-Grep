@@ -1,7 +1,5 @@
 # ECE-428-MP1
 
-------
-
 Group Member: yutao2, jiey3
 
 #### Instructions to run the distributed_grep program:
